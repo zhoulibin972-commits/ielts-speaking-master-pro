@@ -32,7 +32,8 @@ A React-based application designed to help users practice and improve their IELT
 2. **Install dependencies**:
 
    ```bash
-   pnpm install
+   npm install
+   # or: pnpm install
    ```
 
 3. **Set up environment variables**:
@@ -40,13 +41,16 @@ A React-based application designed to help users practice and improve their IELT
 
    ```
    VITE_GEMINI_API_KEY=your_api_key_here
+   # Optional backward-compatible fallback:
+   # GEMINI_API_KEY=your_api_key_here
    ```
 
-   You can obtain an API key from the [Google AI Studio](https://makersuite.google.com/app/apikey).
+   You can obtain an API key from [Google AI Studio](https://aistudio.google.com/app/apikey).
 
 4. **Run the development server**:
    ```bash
-   pnpm dev
+   npm run dev
+   # or: pnpm dev
    ```
    Open your browser and navigate to `http://localhost:5173` (or the port shown in the terminal).
 
@@ -63,22 +67,25 @@ A React-based application designed to help users practice and improve their IELT
 To build the app for production:
 
 ```bash
-pnpm build
+npm run build
+# or: pnpm build
 ```
 
 To preview the production build locally:
 
 ```bash
-pnpm preview
+npm run preview
+# or: pnpm preview
 ```
 
 ## Project Structure
 
-- `src/App.tsx`: Main application component.
-- `src/components/`: Reusable UI components (AudioRecorder, TestResult).
-- `src/services/`: API services (geminiService for AI evaluation).
-- `src/constants.ts`: Test content and constants.
-- `src/types.ts`: TypeScript type definitions.
+- `App.tsx`: Main application component and test flow controller.
+- `components/AudioRecorder.tsx`: Microphone capture, timer, and recording submit flow.
+- `components/TestResult.tsx`: Result dashboard, detailed review, audio merge download, and PDF export.
+- `services/geminiService.ts`: Gemini API integration and JSON-structured evaluation.
+- `constants/ielts.ts` and `constants/prompt.ts`: IELTS test bank and evaluation prompt.
+- `types.ts`: TypeScript domain types for recordings and evaluation results.
 
 ## Contributing
 

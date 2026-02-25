@@ -11,10 +11,8 @@
   "dependencies": {
     "@google/genai": "^1.33.0",
     "@heroicons/react": "^2.2.0",
-    "@types/html2canvas": "^1.0.0",
-    "@types/jspdf": "^2.0.0",
     "html2canvas": "^1.4.1",
-    "jspdf": "^3.0.4",
+    "jspdf": "^4.2.0",
     "react": "^19.2.1",
     "react-dom": "^19.2.1",
     "recharts": "^3.5.1"

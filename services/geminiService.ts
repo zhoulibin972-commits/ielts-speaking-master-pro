@@ -2,7 +2,14 @@ import { GoogleGenAI, Type } from '@google/genai';
 import { RUBRIC_SYSTEM_PROMPT } from '../constants/prompt';
 import { EvaluationResult, AudioRecording } from '../types';
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+const getApiKey = (): string => {
+  const key =
+    process.env.VITE_GEMINI_API_KEY ||
+    process.env.GEMINI_API_KEY ||
+    process.env.API_KEY;
+
+  return typeof key === 'string' ? key.trim() : '';
+};
 
 const blobToBase64 = (blob: Blob): Promise<string> => {
   return new Promise((resolve, reject) => {
@@ -21,6 +28,14 @@ export const evaluateTest = async (
   recordings: AudioRecording[]
 ): Promise<EvaluationResult> => {
   try {
+    const apiKey = getApiKey();
+    if (!apiKey) {
+      throw new Error(
+        'Missing Gemini API key. Set VITE_GEMINI_API_KEY (recommended) or GEMINI_API_KEY.'
+      );
+    }
+
+    const ai = new GoogleGenAI({ apiKey });
     const parts = [];
 
     // Context setting
@@ -168,10 +183,11 @@ export const evaluateTest = async (
     }
   } catch (error) {
     console.error('Evaluation Error Details:', error);
-    if (!process.env.API_KEY) {
-      console.error("API_KEY is missing in process.env!");
+    const apiKey = getApiKey();
+    if (!apiKey) {
+      console.error('Gemini API key is missing.');
     } else {
-      console.log("API_KEY is present (starts with):", process.env.API_KEY.substring(0, 5) + "...");
+      console.log('Gemini API key is present (starts with):', `${apiKey.substring(0, 5)}...`);
     }
     throw error;
   }

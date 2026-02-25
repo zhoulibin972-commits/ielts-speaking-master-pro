@@ -1,9 +1,7 @@
-import React, { useState, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { EvaluationResult, AudioRecording } from '../types';
 import { 
   CheckCircleIcon, 
-  ArrowLeftIcon, 
-  PlayCircleIcon, 
   ExclamationTriangleIcon,
   ArrowDownTrayIcon,
   DocumentArrowDownIcon 
@@ -225,34 +223,17 @@ interface DetailedReviewProps {
 }
 
 const DetailedReview: React.FC<DetailedReviewProps> = ({ result, recordings, isPrinting = false }) => {
-  // Mobile: No padding (handled by parent) or minimal. Desktop: p-6.
-  // We remove 'p-4' from the mobile class list here because DashboardView (parent context) already might have padding, 
-  // or we want it flush on mobile.
-  // Actually, TestResult -> DashboardView is a sibling to DetailedReview. TestResult DOES NOT wrap DetailedReview in a pervasive p-4 container ANYMORE?
-  // Let's check TestResult:
-  // <DashboardView ...> -> has internal padding.
-  // <DetailedReview ...> -> is rendered AFTER DashboardView.
-  // BUT TestResult return fragment <></>.
-  // So DetailedReview is a top level child of the App's container?
-  // App.tsx: Result view is returned directly: <TestResult ... />
-  // App.tsx wrapper: <div className="min-h-[100dvh] bg-gray-50 p-4 md:p-8"> ... <TestResult ... /> ... </div> ???
-  // Wait, App.tsx: if (phase === RESULTS) return <TestResult ... /> -> so it replaces the whole App UI.
-  
-  // So TestResult is the ROOT for that view.
-  // DetailedReview has `max-w-6xl mx-auto ... p-4 md:p-6`. This looks fine usually.
-  // "too much padding in left and write". 
-  // Maybe the user means inside the cards?
-  // The cards have `p-6` (part header) and `p-4` (review item).
-  
-  // Let's look at the DetailedReview container again.
-  // className={`max-w-6xl mx-auto ${isPrinting ? 'p-0 mt-8' : 'p-4 md:p-6 bg-white shadow-xl rounded-2xl my-4 md:my-8 min-h-[80vh]'}`}
-  
-  // On mobile: `p-4`. Plus `App` might have padding?
-  // No, App.tsx replaces the phase content completely.
-  
-  // Let's try reducing the main container padding on mobile to `p-2` or `p-0` if the children have padding.
-  // And the inner cards.
-  
+  const [audioUrls, setAudioUrls] = useState<string[]>([]);
+
+  useEffect(() => {
+    const urls = recordings.map((rec) => URL.createObjectURL(rec.blob));
+    setAudioUrls(urls);
+
+    return () => {
+      urls.forEach((url) => URL.revokeObjectURL(url));
+    };
+  }, [recordings]);
+
   return (
     <div className={`max-w-6xl mx-auto ${isPrinting ? 'p-0 mt-8' : 'py-2 px-1 md:p-6 bg-white shadow-xl rounded-none md:rounded-2xl my-0 md:my-8 min-h-[80vh]'}`}>
       <div className="flex items-center mb-6 border-b pb-4">
@@ -265,9 +246,11 @@ const DetailedReview: React.FC<DetailedReviewProps> = ({ result, recordings, isP
 
       <div className="space-y-12">
         {result.partBreakdown?.map((partData, idx) => {
-           const partRecordings = recordings.filter(r => 
-              partData.part.toLowerCase().includes(r.part.toLowerCase()) ||
-              r.part.toLowerCase().includes(partData.part.toLowerCase())
+           const partRecordings = recordings
+            .map((recording, recordingIndex) => ({ recording, recordingIndex }))
+            .filter(({ recording }) =>
+              partData.part.toLowerCase().includes(recording.part.toLowerCase()) ||
+              recording.part.toLowerCase().includes(partData.part.toLowerCase())
            );
            if (partRecordings.length === 0) return null;
 
@@ -280,20 +263,20 @@ const DetailedReview: React.FC<DetailedReviewProps> = ({ result, recordings, isP
                </div>
 
                <div className="space-y-8">
-                 {partRecordings.map((rec, recIdx) => {
+                 {partRecordings.map(({ recording, recordingIndex }, recIdx) => {
                    const reviewData = partData.reviews?.[recIdx];
-                   return (
-                    <div key={recIdx} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
-                       <div className="mb-4">
-                         <p className="text-xs text-gray-400 uppercase tracking-wider font-semibold mb-1">Question:</p>
-                         <p className="text-gray-800 font-medium">{rec.questionContext}</p>
-                       </div>
+                    return (
+                     <div key={recIdx} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+                        <div className="mb-4">
+                          <p className="text-xs text-gray-400 uppercase tracking-wider font-semibold mb-1">Question:</p>
+                          <p className="text-gray-800 font-medium">{recording.questionContext}</p>
+                        </div>
 
-                       {!isPrinting && (
-                         <div className="mb-4 bg-gray-50 p-3 rounded-lg">
-                           <audio controls src={URL.createObjectURL(rec.blob)} className="w-full h-8" />
-                         </div>
-                       )}
+                        {!isPrinting && (
+                          <div className="mb-4 bg-gray-50 p-3 rounded-lg">
+                            <audio controls src={audioUrls[recordingIndex]} className="w-full h-8" />
+                          </div>
+                        )}
 
                        <div className="mb-4">
                           <p className="text-xs text-gray-400 uppercase tracking-wider font-semibold mb-1">Transcript:</p>
@@ -374,9 +357,11 @@ const TestResult: React.FC<TestResultProps> = ({
     const length = buffer.length * numOfChan * 2 + 44;
     const bufferData = new ArrayBuffer(length);
     const view = new DataView(bufferData);
-    let channels = [];
-    let i, sample;
-    let offset = 0;
+    const channels: Float32Array[] = [];
+    let i: number;
+    let sample: number;
+    let sampleIndex = 0;
+    let writeOffset = 44;
     let pos = 0;
 
     const setUint16 = (data: number) => {
@@ -407,14 +392,14 @@ const TestResult: React.FC<TestResultProps> = ({
     for (i = 0; i < buffer.numberOfChannels; i++)
       channels.push(buffer.getChannelData(i));
 
-    while (pos < buffer.length) {
+    while (sampleIndex < buffer.length) {
       for (i = 0; i < numOfChan; i++) {
-        sample = Math.max(-1, Math.min(1, channels[i][pos])); 
-        sample = (0.5 + sample < 0 ? sample * 32768 : sample * 32767) | 0; 
-        view.setInt16(44 + offset, sample, true); 
-        offset += 2;
+        sample = Math.max(-1, Math.min(1, channels[i][sampleIndex]));
+        sample = sample < 0 ? sample * 32768 : sample * 32767;
+        view.setInt16(writeOffset, sample, true);
+        writeOffset += 2;
       }
-      pos++;
+      sampleIndex++;
     }
 
     return new Blob([bufferData], { type: 'audio/wav' });
@@ -471,11 +456,6 @@ const TestResult: React.FC<TestResultProps> = ({
       // Create PDF with dimensions matching the captured canvas (scrolling single page)
       // Dividing by 2 because of scale:2, but keeping it simple with pixel units equal to canvas size often works best for screen reports
       // OR map to A4 width and scale height.
-      
-      // Approach: A4 Width fixed, Height variable (Long PDF)
-      const pdf = new jsPDF('p', 'mm', 'a4');
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
       
       // IF content is longer than one page, create a custom sized PDF instead of A4 to avoid ugly page breaks in the middle of elements
       // Re-initialize with custom size
